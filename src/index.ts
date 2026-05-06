@@ -10,6 +10,14 @@ export { WebhooksAPI } from "./webhooks";
 export { SandboxAPI, type SandboxInfo, type SandboxTryResult } from "./sandbox";
 export type { WebhookEventName, CreateWebhookParams } from "./webhooks";
 
+export {
+  PRODUCT_ASSET_MAP,
+  getExpectedAsset,
+  getExpectedAssetFromProductId,
+  getProductIdFromName,
+  type AssetSymbol,
+} from "./products-map";
+
 export type {
   LuminaConfig,
   HealthResponse,

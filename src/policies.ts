@@ -8,6 +8,11 @@ import {
 } from "ethers";
 import type { LuminaClient } from "./client";
 import type { Policy, PurchasePolicyParams, PurchaseReceipt } from "./types";
+import {
+  getExpectedAsset,
+  getExpectedAssetFromProductId,
+  getProductIdFromName,
+} from "./products-map";
 
 /**
  * Minimal ERC-20 ABI fragment used by `ensureAllowance` to read the buyer's
@@ -79,11 +84,11 @@ export class PoliciesAPI {
   }
 
   /**
-   * Purchase a policy via the relayer. Premium is charged in the asset
-   * specified (USDC by default); the relayer pays gas.
-   *
-   * `params.asset` accepts either the symbol `"USDC"` (encoded to bytes32
-   * for you) or a literal 32-byte hex string.
+   * Purchase a policy via the relayer. The relayer pays gas; the buyer pays
+   * the USDC premium. Pass either `productName` (recommended — the SDK then
+   * auto-resolves the productId hash AND the per-shield asset literal) or
+   * `productId` (advanced — the SDK still auto-resolves the asset from the
+   * product's bytes32 hash).
    *
    * The buyer wallet must have approved CoverRouter for at least the
    * premium amount in advance — call `ensureAllowance(buyerSigner, premium)`
@@ -91,7 +96,21 @@ export class PoliciesAPI {
    * `400 insufficient_allowance` with the exact approve calldata.
    */
   async purchase(params: PurchasePolicyParams): Promise<PurchaseReceipt> {
-    const asset = normalizeAssetBytes32(params.asset);
+    if (!params.productId && !params.productName) {
+      throw new TypeError(
+        "purchase: must supply productId or productName (productName is preferred — the SDK then auto-resolves both the id hash and the per-shield asset)."
+      );
+    }
+    const productId = params.productId ?? getProductIdFromName(params.productName!);
+    // Auto-resolve asset when caller didn't override. Using productName is
+    // preferred because the lookup is direct; productId requires a reverse
+    // index lookup which still must match a known canonical product.
+    const assetSymbol =
+      params.asset ??
+      (params.productName
+        ? getExpectedAsset(params.productName)
+        : getExpectedAssetFromProductId(productId));
+    const asset = normalizeAssetBytes32(assetSymbol);
     const headers: Record<string, string> = {};
     if (params.idempotencyKey) headers["Idempotency-Key"] = params.idempotencyKey;
 
@@ -99,7 +118,7 @@ export class PoliciesAPI {
       method: "POST",
       headers,
       body: JSON.stringify({
-        productId: params.productId,
+        productId,
         coverageAmount: params.coverageAmount,
         asset,
         buyer: params.buyer,
