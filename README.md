@@ -22,6 +22,8 @@ console.log('Connected to chain:', health.chain.chainId)
 // 2. Buy a $50 policy on the 24h flash-crash BTC product.
 //    Pass productName — the SDK 0.3.0+ resolves both the bytes32 productId
 //    hash AND the per-shield asset literal (BTC/ETH/USDT/USDC) for you.
+//    The `asset` field below means the COVERED asset (BTC). Premium is
+//    always paid in USDC.
 const policy = await lumina.policies.purchase({
   productName: 'FLASHBTC24-001',
   buyer: '0xYourWalletAddress',
@@ -30,6 +32,10 @@ const policy = await lumina.policies.purchase({
 
 console.log('Policy ID:', policy.policyId, 'tx:', policy.txHash)
 ```
+
+> **Premium is always paid in USDC.** The `asset` field on a purchase or
+> product refers to the *covered* asset (what the policy insures against),
+> not the payment token.
 
 > Hardcoding `asset: 'USDC'` for every shield reverts 7-of-9 with
 > `InvalidAsset(bytes32("USDC"))` — only `RATESHOCK-001` actually expects USDC.
@@ -80,6 +86,33 @@ lumina.webhooks.delete(id)
 lumina.sandbox.info()
 lumina.sandbox.try(productId?)      // public, $1 cap, 10/h/IP
 ```
+
+## Understanding products
+
+Lumina currently exposes 9 parametric insurance products. Each product
+insures against an event involving a specific **covered asset**, and SDK
+0.4.0+ surfaces this explicitly via `Product.coveredAsset`,
+`Product.paymentAsset`, and `Product.coverageDescription`.
+
+| productName       | coveredAsset | coverageDescription                                          |
+|-------------------|--------------|--------------------------------------------------------------|
+| FLASHBTC1H-001    | BTC          | Insures BTC against rapid price crashes within 1 hour        |
+| FLASHBTC4H-001    | BTC          | Insures BTC against rapid price crashes within 4 hours       |
+| FLASHBTC24-001    | BTC          | Insures BTC against rapid price crashes within 24 hours      |
+| FLASHBTC48-001    | BTC          | Insures BTC against rapid price crashes within 48 hours      |
+| FLASHETH1H-001    | ETH          | Insures ETH against rapid price crashes within 1 hour        |
+| FLASHETH24-001    | ETH          | Insures ETH against rapid price crashes within 24 hours      |
+| FLASHETH48-001    | ETH          | Insures ETH against rapid price crashes within 48 hours      |
+| MICRODEPEG-001    | USDT         | Insures against USDT losing its peg to $1.00                 |
+| RATESHOCK-001     | USDC         | Insures against USDC borrow rate shocks on Aave V3           |
+
+> **Premium is always paid in USDC.** The `asset` field on a purchase or
+> product refers to the *covered* asset (what the policy insures against),
+> not the payment token. Both `Product.paymentAsset` and the implicit
+> settlement currency are always `USDC`.
+
+See `examples/list-products-and-explain.ts` for a runnable script that
+prints this table from a live `/products` call.
 
 ## Errors
 
