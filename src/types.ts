@@ -203,3 +203,16 @@ export interface CreateWebhookResult {
   secret: string;
   warning: string;
 }
+
+// [0.5.0] Marketplace helpers — re-exported here so consumers can do
+// `import type { MarketplaceStats } from '@lumina-org/sdk'` without reaching
+// into `marketplace/types`.
+export type {
+  MarketplaceStats,
+  Trade,
+  ListParams,
+  BuyParams,
+  CancelParams,
+  ApproveParams,
+  TxResult,
+} from "./marketplace/types";
