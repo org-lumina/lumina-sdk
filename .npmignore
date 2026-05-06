@@ -1,0 +1,11 @@
+src/
+tests/
+examples/
+node_modules/
+.github/
+.gitignore
+tsconfig.json
+jest.config.js
+*.tgz
+*.log
+.DS_Store

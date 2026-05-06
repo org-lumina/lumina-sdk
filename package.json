@@ -1,0 +1,54 @@
+{
+  "name": "@lumina-org/sdk",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "Official SDK for Lumina Protocol — parametric DeFi insurance for AI agents (Base Sepolia, Base mainnet soon)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --runInBand",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "defi",
+    "insurance",
+    "lumina",
+    "ai-agents",
+    "base",
+    "ethereum",
+    "parametric",
+    "claim-bond"
+  ],
+  "author": "Lumina Protocol",
+  "license": "MIT",
+  "homepage": "https://docs.lumina-org.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/org-lumina/lumina-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/org-lumina/lumina-sdk/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.17.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.0"
+  }
+}
