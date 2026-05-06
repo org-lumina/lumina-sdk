@@ -114,6 +114,52 @@ insures against an event involving a specific **covered asset**, and SDK
 See `examples/list-products-and-explain.ts` for a runnable script that
 prints this table from a live `/products` call.
 
+## Marketplace operations
+
+The secondary marketplace lets agents trade ClaimBonds (the ERC-1155
+receipts a triggered policy mints). SDK 0.5.0+ exposes the full
+read+write surface, including ABI-bundled write helpers that handle
+calldata encoding and ERC-20/ERC-1155 approvals for you.
+
+| Method                  | Signature                                            | Brief                                              |
+|-------------------------|------------------------------------------------------|----------------------------------------------------|
+| `listings`              | `(params?) => Listing[]`                             | Browse active listings (limit/offset/sort).        |
+| `listing`               | `(id) => Listing`                                    | Fetch one listing by id.                           |
+| `stats`                 | `() => MarketplaceStats`                             | Floor, 24h volume, active count, total volume.     |
+| `history`               | `({ limit, offset }?) => Trade[]`                    | Executed trades, most-recent first.                |
+| `myListings`            | `(seller) => Listing[]`                              | Listings created by `seller`.                      |
+| `list`                  | `(ListParams) => TxResult`                           | Create a listing (parses on-chain `Listed` event). |
+| `buy`                   | `(BuyParams) => TxResult`                            | Execute a buy on a listing.                        |
+| `cancel`                | `(CancelParams) => TxResult`                         | Cancel one of your own listings.                   |
+| `approve`               | `({ amount }) => TxResult`                           | USDC approve to marketplace; no-op if sufficient.  |
+| `approveBonds`          | `() => TxResult`                                     | ClaimBond `setApprovalForAll`; no-op if approved.  |
+
+```ts
+import { JsonRpcProvider, Wallet } from 'ethers'
+import { LuminaClient, MarketplaceAPI, estimateBuyPrice } from '@lumina-org/sdk'
+
+const provider = new JsonRpcProvider('https://sepolia.base.org')
+const seller = new Wallet(process.env.SELLER_PRIVATE_KEY!, provider)
+
+const client = new LuminaClient({ apiKey: process.env.LUMINA_API_KEY! })
+const market = new MarketplaceAPI(client, seller)
+
+await market.approveBonds()                                    // one-time
+const r = await market.list({
+  bondId: 202805n, amount: 10n, pricePerUnit: 1_500_000n, expiresAt: 0,
+})
+console.log('listed as', r.listingId)
+```
+
+> **Marketplace lives on Base Sepolia (chainId 84532).** Fees are 1.5%
+> maker + 1.5% taker (3% round-trip). Anti-spam floor is $1.00 per unit.
+
+See [`examples/marketplace-flow.ts`](./examples/marketplace-flow.ts) for an
+end-to-end script: `approveBonds` → `list` → `buy` → `cancel`.
+
+Read the full marketplace spec at
+[https://docs.lumina-org.com/concepts/marketplace](https://docs.lumina-org.com/concepts/marketplace).
+
 ## Errors
 
 Every non-2xx response throws `LuminaError`:

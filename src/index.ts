@@ -33,4 +33,20 @@ export type {
   ApiKeyMetadata,
   WebhookSubscription,
   CreateWebhookResult,
+  MarketplaceStats,
+  Trade,
+  ListParams,
+  BuyParams,
+  CancelParams,
+  ApproveParams,
+  TxResult,
 } from "./types";
+
+export {
+  waitForTx,
+  parseListingFromLog,
+  estimateBuyPrice,
+  MAKER_FEE_BPS,
+  TAKER_FEE_BPS,
+  MIN_PRICE_PER_UNIT,
+} from "./marketplace";
