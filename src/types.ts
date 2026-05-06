@@ -26,6 +26,14 @@ export interface HealthResponse {
 
 export interface Product {
   productId: string;
+  /**
+   * [10x10] Canonical keccak256 preimage (e.g. `"FLASHBTC1H-001"`). Lets
+   * agents map productId → name without re-computing hashes from the docs.
+   * `null` for products not in the canonical registry yet.
+   */
+  name: string | null;
+  /** Human-friendly label (e.g. `"Flash BTC 1h"`). */
+  displayName: string;
   shield: string;
   payoutRatioBps: number;
   triggerProbBps: number;
@@ -129,9 +137,15 @@ export interface OnboardResult {
 
 export interface ApiKeyMetadata {
   keyId: number;
+  /** [10x10] Internal agent row id, exposed for debugging. */
+  agentId?: number;
   label: string | null;
   tier: "free" | "paid";
+  /** [10x10] First 8 chars of the SHA-256 hash, useful for UI key disambiguation. */
+  hashPrefix?: string;
   createdAt: string;
+  /** Unix-ms when this key was revoked (`null` for active keys). */
+  revokedAt?: number | null;
 }
 
 export interface WebhookSubscription {

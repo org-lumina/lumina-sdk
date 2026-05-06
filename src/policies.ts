@@ -1,6 +1,23 @@
-import { encodeBytes32String, isHexString } from "ethers";
+import {
+  Contract,
+  MaxUint256,
+  encodeBytes32String,
+  isHexString,
+  type ContractTransactionReceipt,
+  type Signer,
+} from "ethers";
 import type { LuminaClient } from "./client";
 import type { Policy, PurchasePolicyParams, PurchaseReceipt } from "./types";
+
+/**
+ * Minimal ERC-20 ABI fragment used by `ensureAllowance` to read the buyer's
+ * current allowance and (when needed) submit `approve(spender, MaxUint256)`.
+ * Kept tiny so the SDK doesn't pull in the full OpenZeppelin or USDC ABI.
+ */
+const ERC20_ABI = [
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+] as const;
 
 export class PoliciesAPI {
   constructor(private readonly client: LuminaClient) {}
@@ -27,11 +44,51 @@ export class PoliciesAPI {
   }
 
   /**
+   * [10x10] Ensure the buyer wallet has approved CoverRouter to spend at
+   * least `amount` USDC. If the current allowance is already sufficient,
+   * no transaction is sent and `null` is returned. Otherwise an
+   * `approve(coverRouter, MaxUint256)` is submitted and the wait-mined
+   * receipt is returned.
+   *
+   * The CoverRouter and USDC addresses are resolved from `GET /health`
+   * so a redeploy can't desync the SDK from canonical state.
+   *
+   * @param buyer  Any ethers v6 `Signer` connected to a Base Sepolia provider.
+   * @param amount Minimum allowance required (USDC base units, 6-dec). Defaults
+   *               to `MaxUint256` if you want to authorize once and forget.
+   * @returns The approve tx receipt, or `null` if no approval was necessary.
+   */
+  async ensureAllowance(
+    buyer: Signer,
+    amount: bigint = MaxUint256
+  ): Promise<ContractTransactionReceipt | null> {
+    const health = await this.client.health();
+    const usdcAddr = health.contracts.usdc;
+    const coverRouterAddr = health.contracts.coverRouter;
+    if (!usdcAddr || !coverRouterAddr) {
+      throw new Error(
+        "ensureAllowance: /health did not return usdc + coverRouter addresses. Are you on a supported network?"
+      );
+    }
+    const buyerAddr = await buyer.getAddress();
+    const usdc = new Contract(usdcAddr, ERC20_ABI, buyer);
+    const current = (await usdc.allowance(buyerAddr, coverRouterAddr)) as bigint;
+    if (current >= amount) return null;
+    const tx = await usdc.approve(coverRouterAddr, MaxUint256);
+    return (await tx.wait()) as ContractTransactionReceipt;
+  }
+
+  /**
    * Purchase a policy via the relayer. Premium is charged in the asset
    * specified (USDC by default); the relayer pays gas.
    *
    * `params.asset` accepts either the symbol `"USDC"` (encoded to bytes32
    * for you) or a literal 32-byte hex string.
+   *
+   * The buyer wallet must have approved CoverRouter for at least the
+   * premium amount in advance — call `ensureAllowance(buyerSigner, premium)`
+   * once per buyer to set this up. Without it, the API returns
+   * `400 insufficient_allowance` with the exact approve calldata.
    */
   async purchase(params: PurchasePolicyParams): Promise<PurchaseReceipt> {
     const asset = normalizeAssetBytes32(params.asset);
