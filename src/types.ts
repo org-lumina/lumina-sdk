@@ -67,16 +67,31 @@ export interface Policy {
 }
 
 export interface PurchasePolicyParams {
-  productId: string;
+  /**
+   * bytes32 keccak256 hash of the canonical product name. Either
+   * `productId` or `productName` must be supplied; if both are present
+   * `productId` wins.
+   */
+  productId?: string;
+  /**
+   * Canonical product name (e.g. `"FLASHBTC1H-001"`). Recommended over
+   * `productId` because the SDK can derive both the productId hash AND the
+   * expected asset from it, eliminating a class of `InvalidAsset` reverts.
+   */
+  productName?: string;
   buyer: string;
   /** USDC base units (6 decimals) as a decimal string. e.g. "50000000" = $50. */
   coverageAmount: string;
   /**
-   * Asset to denominate cover/premium in. Pass the symbol (`"USDC"`) and the
-   * SDK encodes it to bytes32 for you, OR pass a 32-byte hex string for full
-   * control.
+   * Optional asset override. If omitted, the SDK auto-resolves the asset from
+   * the product (each shield has a hardcoded asset literal — sending the wrong
+   * one reverts with `InvalidAsset`). Pass an explicit value only when you
+   * deliberately want to bypass the auto-resolver.
+   *
+   * Accepts a symbol (`"BTC" | "ETH" | "USDC" | "USDT"`) — the SDK encodes it
+   * to bytes32 for you — or a 32-byte hex string for full control.
    */
-  asset: "USDC" | string;
+  asset?: "BTC" | "ETH" | "USDC" | "USDT" | string;
   /** Optional UUID for at-least-once delivery semantics. */
   idempotencyKey?: string;
 }
