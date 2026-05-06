@@ -40,6 +40,30 @@ export interface Product {
   marginBps: number;
   durationSeconds: number;
   active: boolean;
+  /**
+   * [0.4.0] The asset whose event is insured against (e.g. `"BTC"` for a flash
+   * BTC crash policy). Premium is always paid in USDC regardless of this field.
+   *
+   * Optional because the SDK may run against an API older than the
+   * `feat/products-coveredAsset` server release; older deployments simply omit
+   * this field. Existing code that only reads the legacy fields keeps working.
+   */
+  coveredAsset?: "USDC" | "USDT" | "BTC" | "ETH";
+  /**
+   * [0.4.0] Always `"USDC"` — premium and payout settlement token. Exposed
+   * explicitly so agents do not have to remember that USDC is universal.
+   *
+   * Optional for the same backward-compat reason as `coveredAsset`.
+   */
+  paymentAsset?: "USDC";
+  /**
+   * [0.4.0] Plain-English one-liner describing what the policy insures
+   * against (e.g. `"Insures BTC against rapid price crashes within 1 hour"`).
+   * Useful for UI rendering and LLM-facing descriptions.
+   *
+   * Optional for the same backward-compat reason as `coveredAsset`.
+   */
+  coverageDescription?: string;
 }
 
 export interface Policy {
