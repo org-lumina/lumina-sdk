@@ -12,7 +12,6 @@ Currently deployed on **Base Sepolia (chainId 84532)**. Mainnet soon.
 
 ```ts
 import { LuminaClient } from '@lumina-org/sdk'
-import { keccak256, toUtf8Bytes } from 'ethers'
 
 const lumina = new LuminaClient({ apiKey: process.env.LUMINA_API_KEY! })
 
@@ -20,16 +19,22 @@ const lumina = new LuminaClient({ apiKey: process.env.LUMINA_API_KEY! })
 const health = await lumina.health()
 console.log('Connected to chain:', health.chain.chainId)
 
-// 2. Buy a $50 policy on the 24h flash-crash BTC product
+// 2. Buy a $50 policy on the 24h flash-crash BTC product.
+//    Pass productName — the SDK 0.3.0+ resolves both the bytes32 productId
+//    hash AND the per-shield asset literal (BTC/ETH/USDT/USDC) for you.
 const policy = await lumina.policies.purchase({
-  productId: keccak256(toUtf8Bytes('FLASHBTC24-001')),
+  productName: 'FLASHBTC24-001',
   buyer: '0xYourWalletAddress',
   coverageAmount: '50000000',  // $50 in USDC base units (6 decimals)
-  asset: 'USDC',                // SDK encodes to bytes32 for you
 })
 
 console.log('Policy ID:', policy.policyId, 'tx:', policy.txHash)
 ```
+
+> Hardcoding `asset: 'USDC'` for every shield reverts 7-of-9 with
+> `InvalidAsset(bytes32("USDC"))` — only `RATESHOCK-001` actually expects USDC.
+> See [products and assets](https://docs.lumina-org.com/agents/products-and-assets)
+> for the registry.
 
 ## Get an API key (self-service)
 

@@ -2,11 +2,10 @@
  * examples/purchase-policy.ts — buy a $50 policy as an AI agent.
  *
  * Run:
- *   LUMINA_API_KEY=lk_… npx ts-node examples/purchase-policy.ts
+ *   LUMINA_API_KEY=lk_… BUYER_WALLET=0x… npx ts-node examples/purchase-policy.ts
  */
 
 import { LuminaClient } from "@lumina-org/sdk";
-import { keccak256, toUtf8Bytes } from "ethers";
 
 async function main() {
   const lumina = new LuminaClient({ apiKey: process.env.LUMINA_API_KEY! });
@@ -14,13 +13,13 @@ async function main() {
   const health = await lumina.health();
   console.log("Connected to chain:", health.chain.chainId, "block", health.chain.block);
 
-  const productId = keccak256(toUtf8Bytes("FLASHBTC24-001"));
-
+  // Pass productName — SDK 0.3.0+ resolves both the bytes32 productId hash
+  // AND the per-shield asset literal (BTC for FlashBTC, ETH for FlashETH,
+  // USDT for MicroDepeg, USDC for RateShock).
   const receipt = await lumina.policies.purchase({
-    productId,
+    productName: "FLASHBTC24-001",
     buyer: process.env.BUYER_WALLET!, // 0x… wallet that consents to pay USDC
     coverageAmount: "50000000",        // $50 in USDC base units (6 decimals)
-    asset: "USDC",
   });
 
   console.log("Policy purchased:", receipt.policyId, "tx:", receipt.txHash);
