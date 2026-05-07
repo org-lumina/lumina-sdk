@@ -1,5 +1,5 @@
 import { LuminaError } from "./errors";
-import type { HealthResponse, LuminaConfig } from "./types";
+import type { ContractAddresses, HealthResponse, LuminaConfig } from "./types";
 import { PoliciesAPI } from "./policies";
 import { BondsAPI } from "./bonds";
 import { MarketplaceAPI } from "./marketplace";
@@ -22,6 +22,10 @@ export class LuminaClient {
   // and reused across all auto-resolving calls so a single key only
   // pays the round-trip once per process.
   private myWalletPromise: Promise<string> | null = null;
+  // Memoized result of GET /health.contracts. Resolved by `getContracts()`
+  // and shared by every sub-API that needs an on-chain address (no
+  // hardcoded constants anywhere in the SDK after 0.5.2).
+  private contractsPromise: Promise<ContractAddresses> | null = null;
 
   public readonly products: ProductsAPI;
   public readonly policies: PoliciesAPI;
@@ -88,6 +92,61 @@ export class LuminaClient {
       }
     })();
     return this.myWalletPromise;
+  }
+
+  /**
+   * Resolve and cache the canonical contract addresses from `GET /health`.
+   * Used by every sub-API that needs an on-chain address (marketplace
+   * write paths, allowance checks, etc.) so the SDK never carries a
+   * hardcoded address that can desync from a redeploy.
+   *
+   * Caching: shared `Promise` per `LuminaClient` instance. The first call
+   * makes one round-trip; subsequent calls (concurrent or serial) reuse
+   * the result. On failure the cache is dropped so the next call retries.
+   *
+   * Errors: surfaces the underlying `LuminaError` from `fetch()` (network,
+   * non-2xx). Each missing key in `health.contracts` is reported as a
+   * single explicit `LuminaError(500, "health_contracts_incomplete")` so
+   * callers don't get an `undefined` address downstream.
+   */
+  async getContracts(): Promise<ContractAddresses> {
+    if (this.contractsPromise) return this.contractsPromise;
+    this.contractsPromise = (async () => {
+      try {
+        const health = await this.health();
+        const c = health.contracts ?? {};
+        const required: Array<keyof ContractAddresses> = [
+          "coverRouter",
+          "policyManager",
+          "bondVault",
+          "claimBond",
+          "marketplace",
+          "usdc",
+          "luminaToken",
+        ];
+        const missing = required.filter((k) => typeof c[k] !== "string" || !c[k]);
+        if (missing.length > 0) {
+          throw new LuminaError(
+            `GET /health.contracts is missing required keys: ${missing.join(", ")}. Check that the API is on a supported network and version.`,
+            500,
+            "health_contracts_incomplete"
+          );
+        }
+        return {
+          coverRouter: c.coverRouter,
+          policyManager: c.policyManager,
+          bondVault: c.bondVault,
+          claimBond: c.claimBond,
+          marketplace: c.marketplace,
+          usdc: c.usdc,
+          luminaToken: c.luminaToken,
+        };
+      } catch (err) {
+        this.contractsPromise = null;
+        throw err;
+      }
+    })();
+    return this.contractsPromise;
   }
 
   /**

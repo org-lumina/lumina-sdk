@@ -24,6 +24,26 @@ export interface HealthResponse {
   contracts: Record<string, string>;
 }
 
+/**
+ * Strongly-typed view of `health.contracts`. Every key returned by the
+ * canonical `/health` endpoint at the time of the 0.5.2 release. The SDK
+ * resolves all addresses from `/health` at runtime — never hardcoded.
+ *
+ * If the API later adds new contracts, they appear in `health.contracts`
+ * (the loose `Record<string, string>`) but will not be typed here until
+ * the SDK is updated. Callers needing experimental keys should reach for
+ * `lumina.health()` directly.
+ */
+export interface ContractAddresses {
+  coverRouter: string;
+  policyManager: string;
+  bondVault: string;
+  claimBond: string;
+  marketplace: string;
+  usdc: string;
+  luminaToken: string;
+}
+
 export interface Product {
   productId: string;
   /**

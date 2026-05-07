@@ -1,7 +1,6 @@
 import {
   Contract,
   Interface,
-  ZeroAddress,
   type ContractTransactionReceipt,
   type ContractTransactionResponse,
   type InterfaceAbi,
@@ -30,14 +29,6 @@ import type {
   TxResult,
 } from "./types";
 
-/**
- * Truth-table constants (Base Sepolia 84532). Hardcoded because the
- * marketplace contract address is the canonical anchor for the SDK; USDC
- * and ClaimBond addresses can also be discovered via `/health`, with a
- * documented fallback to these constants.
- */
-const MARKETPLACE_ADDRESS = "0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E";
-const CLAIM_BOND_ADDRESS = "0x3d2F26B6BBcfDD6c7c1Ad0dE1FE52F22ed2e1730";
 /** 1.5% maker + 1.5% taker = 3% round-trip. */
 export const MAKER_FEE_BPS = 150;
 export const TAKER_FEE_BPS = 150;
@@ -139,29 +130,12 @@ export async function estimateBuyPrice(
   };
 }
 
-/**
- * Resolve marketplace + USDC + ClaimBond addresses. Prefers `/health` so a
- * redeploy can't desync the SDK from canonical state, falls back to the
- * hardcoded constants for offline use.
- */
-async function resolveAddresses(
-  client: LuminaClient
-): Promise<{ marketplace: string; usdc: string; claimBond: string }> {
-  try {
-    const health = await client.health();
-    return {
-      marketplace: health.contracts.bondMarketplace ?? MARKETPLACE_ADDRESS,
-      usdc: health.contracts.usdc ?? ZeroAddress,
-      claimBond: health.contracts.claimBond ?? CLAIM_BOND_ADDRESS,
-    };
-  } catch {
-    return {
-      marketplace: MARKETPLACE_ADDRESS,
-      usdc: ZeroAddress,
-      claimBond: CLAIM_BOND_ADDRESS,
-    };
-  }
-}
+// Marketplace, USDC, and ClaimBond addresses are resolved at runtime
+// from `client.getContracts()` (which calls `/health` once and caches).
+// The SDK no longer carries hardcoded contract addresses; a missing or
+// unreachable `/health` surfaces a `LuminaError("health_contracts_incomplete"
+// | "network_error")` so callers fail loud instead of transacting
+// against a stale fallback address.
 
 /**
  * MarketplaceAPI — secondary-market helpers for ClaimBonds.
@@ -171,8 +145,9 @@ async function resolveAddresses(
  *   transactions through the supplied `signer`. They throw if the API was
  *   constructed without a signer.
  *
- * Marketplace contract: `0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E`
- * (Base Sepolia 84532, UUPS proxy). Fees: 1.5% maker + 1.5% taker.
+ * Marketplace contract address is resolved at runtime from
+ * `client.getContracts()` (canonical via `GET /health`). UUPS proxy on
+ * Base Sepolia 84532. Fees: 1.5% maker + 1.5% taker.
  */
 export class MarketplaceAPI {
   constructor(
@@ -307,7 +282,7 @@ export class MarketplaceAPI {
       );
     }
     const totalPriceUSDC = pricePerUnit * amount;
-    const { marketplace } = await resolveAddresses(this.client);
+    const { marketplace } = await this.client.getContracts();
     const contract = new Contract(marketplace, marketplaceAbi, signer);
     const tx = (await contract.list(
       bondId,
@@ -342,7 +317,7 @@ export class MarketplaceAPI {
     const signer = this.requireSigner("buy");
     const listingId = toPositiveBigInt(params.listingId, "listingId");
     toPositiveBigInt(params.amount, "amount"); // validate shape; not sent on wire
-    const { marketplace } = await resolveAddresses(this.client);
+    const { marketplace } = await this.client.getContracts();
     const contract = new Contract(marketplace, marketplaceAbi, signer);
     const tx = (await contract.executeBuy(listingId)) as ContractTransactionResponse;
     const receipt = await waitForTx(tx);
@@ -360,7 +335,7 @@ export class MarketplaceAPI {
   async cancel(params: CancelParams): Promise<TxResult> {
     const signer = this.requireSigner("cancel");
     const listingId = toPositiveBigInt(params.listingId, "listingId");
-    const { marketplace } = await resolveAddresses(this.client);
+    const { marketplace } = await this.client.getContracts();
     const contract = new Contract(marketplace, marketplaceAbi, signer);
     const tx = (await contract.cancel(listingId)) as ContractTransactionResponse;
     const receipt = await waitForTx(tx);
@@ -380,12 +355,7 @@ export class MarketplaceAPI {
   async approve(params: ApproveParams): Promise<TxResult> {
     const signer = this.requireSigner("approve");
     const amount = toPositiveBigInt(params.amount, "amount");
-    const { marketplace, usdc } = await resolveAddresses(this.client);
-    if (usdc === ZeroAddress) {
-      throw new Error(
-        "approve: USDC address could not be resolved from /health. Check baseUrl."
-      );
-    }
+    const { marketplace, usdc } = await this.client.getContracts();
     const owner = await signer.getAddress();
     const usdcContract = new Contract(usdc, erc20Abi, signer);
     const current = (await usdcContract.allowance(owner, marketplace)) as bigint;
@@ -411,7 +381,7 @@ export class MarketplaceAPI {
    */
   async approveBonds(): Promise<TxResult> {
     const signer = this.requireSigner("approveBonds");
-    const { marketplace, claimBond } = await resolveAddresses(this.client);
+    const { marketplace, claimBond } = await this.client.getContracts();
     const owner = await signer.getAddress();
     const bond = new Contract(claimBond, erc1155Abi, signer);
     const already = (await bond.isApprovedForAll(owner, marketplace)) as boolean;

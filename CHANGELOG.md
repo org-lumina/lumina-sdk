@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.2 — 2026-05-07
+### Fixed
+- CRITICAL: `marketplace.*` write methods (`approveBonds`, `list`, `buy`, `cancel`, `approve`) read `health.contracts.bondMarketplace` — but the canonical key is `marketplace`. The lookup always returned `undefined` and silently fell back to a hardcoded constant. The constant happened to match prod, so marketplace itself worked, but the fallback for `claimBond` (`0x3d2F26B6…`) was stale (live: `0x3d2F5DB2…`). Fixed: now reads `marketplace` and never falls back. (P0)
+- Removed all hardcoded contract addresses from `src/`. `MARKETPLACE_ADDRESS` and `CLAIM_BOND_ADDRESS` are gone; addresses are resolved at runtime from `GET /health` and cached.
+
+### Added
+- `LuminaClient.getContracts()` — cached helper that returns the typed `ContractAddresses` from `/health`. Memoized via shared `Promise` so concurrent callers share one round-trip. Cache is dropped on failure so transient `/health` outages don't pin the client into permanent failure.
+- `ContractAddresses` interface exported from the package root: `{ coverRouter, policyManager, bondVault, claimBond, marketplace, usdc, luminaToken }`.
+- Strict validation: if `/health.contracts` is missing any required key, the client throws `LuminaError(500, "health_contracts_incomplete")` listing the missing keys.
+
+### Changed
+- `MarketplaceAPI.{list,buy,cancel,approve,approveBonds}` now `await this.client.getContracts()` instead of using a function-local `resolveAddresses` with try/catch fallback. Failures are propagated, not swallowed.
+
+### Removed
+- Constants `MARKETPLACE_ADDRESS`, `CLAIM_BOND_ADDRESS` (`src/marketplace/index.ts`).
+- Internal helper `resolveAddresses` (replaced by `LuminaClient.getContracts`).
+
 ## 0.5.1 — 2026-05-07
 ### Fixed
 - `bonds.list()` no longer 404s — the slim 0.5.0 implementation hit `/api/v1/bonds` (no wallet) and the API only exposes `/api/v1/bonds/<wallet>`. The SDK now auto-resolves the caller's wallet from the API key and threads it into the URL. (P0-2)
