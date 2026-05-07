@@ -21,6 +21,7 @@ export {
 export type {
   LuminaConfig,
   HealthResponse,
+  ContractAddresses,
   Product,
   Policy,
   PurchasePolicyParams,

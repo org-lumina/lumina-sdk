@@ -40,9 +40,13 @@ function healthFetchStub(): Response {
       chain: { chainId: 84532, block: 1, rpcConnected: true },
       relayer: { address: "0x0", balanceWei: "0" },
       contracts: {
-        usdc: FAKE_USDC,
-        bondMarketplace: FAKE_MARKETPLACE,
+        coverRouter: "0x" + "a".repeat(40),
+        policyManager: "0x" + "b".repeat(40),
+        bondVault: "0x" + "c".repeat(40),
         claimBond: FAKE_CLAIMBOND,
+        marketplace: FAKE_MARKETPLACE,
+        usdc: FAKE_USDC,
+        luminaToken: "0x" + "d".repeat(40),
       },
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }

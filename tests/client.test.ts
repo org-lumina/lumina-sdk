@@ -68,3 +68,129 @@ describe("LuminaClient — fetch error mapping", () => {
     expect((err as LuminaError).status).toBe(0);
   });
 });
+
+describe("LuminaClient.getContracts — runtime address resolution", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const FULL_HEALTH = {
+    status: "ok",
+    service: "lumina-api",
+    version: "0.1.0",
+    uptimeSeconds: 1,
+    chain: { chainId: 84532, block: 1, rpcConnected: true },
+    relayer: { address: "0xrelayer", balanceWei: "0" },
+    contracts: {
+      coverRouter: "0x" + "1".repeat(40),
+      policyManager: "0x" + "2".repeat(40),
+      bondVault: "0x" + "3".repeat(40),
+      claimBond: "0x" + "4".repeat(40),
+      marketplace: "0x" + "5".repeat(40),
+      usdc: "0x" + "6".repeat(40),
+      luminaToken: "0x" + "7".repeat(40),
+    },
+  };
+
+  it("returns the seven contract addresses keyed by the canonical names", async () => {
+    let callCount = 0;
+    globalThis.fetch = (async () => {
+      callCount++;
+      return new Response(JSON.stringify(FULL_HEALTH), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const c = new LuminaClient({ apiKey: "x" });
+    const contracts = await c.getContracts();
+    expect(contracts).toEqual({
+      coverRouter: "0x" + "1".repeat(40),
+      policyManager: "0x" + "2".repeat(40),
+      bondVault: "0x" + "3".repeat(40),
+      claimBond: "0x" + "4".repeat(40),
+      marketplace: "0x" + "5".repeat(40),
+      usdc: "0x" + "6".repeat(40),
+      luminaToken: "0x" + "7".repeat(40),
+    });
+    expect(callCount).toBe(1);
+  });
+
+  it("caches the result — concurrent + serial callers share one /health round-trip", async () => {
+    let callCount = 0;
+    globalThis.fetch = (async () => {
+      callCount++;
+      return new Response(JSON.stringify(FULL_HEALTH), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const c = new LuminaClient({ apiKey: "x" });
+    // 5 concurrent callers
+    const [a, b, cc, d, e] = await Promise.all([
+      c.getContracts(),
+      c.getContracts(),
+      c.getContracts(),
+      c.getContracts(),
+      c.getContracts(),
+    ]);
+    // 2 more serial after the cache settled
+    const f = await c.getContracts();
+    const g = await c.getContracts();
+
+    expect(a).toBe(b);
+    expect(a).toBe(cc);
+    expect(a).toBe(d);
+    expect(a).toBe(e);
+    expect(a).toBe(f);
+    expect(a).toBe(g);
+    expect(callCount).toBe(1);
+  });
+
+  it("surfaces a clear LuminaError if /health.contracts is missing required keys", async () => {
+    const incomplete = {
+      ...FULL_HEALTH,
+      contracts: { coverRouter: "0x" + "1".repeat(40) }, // missing the other 6
+    };
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify(incomplete), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })) as typeof fetch;
+
+    const c = new LuminaClient({ apiKey: "x" });
+    const err = await c.getContracts().catch((e) => e);
+    expect(err).toBeInstanceOf(LuminaError);
+    expect((err as LuminaError).code).toBe("health_contracts_incomplete");
+    expect((err as LuminaError).message).toMatch(/policyManager/);
+    expect((err as LuminaError).message).toMatch(/marketplace/);
+  });
+
+  it("drops cache on failure so a transient outage doesn't pin permanent failure", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      if (calls === 1) {
+        // First call: simulate /health 503
+        return new Response(JSON.stringify({ error: "upstream_down" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      // Subsequent calls: success
+      return new Response(JSON.stringify(FULL_HEALTH), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const c = new LuminaClient({ apiKey: "x" });
+    await expect(c.getContracts()).rejects.toBeInstanceOf(LuminaError);
+    // Cache cleared → second call retries.
+    const ok = await c.getContracts();
+    expect(ok.coverRouter).toBe("0x" + "1".repeat(40));
+    expect(calls).toBe(2);
+  });
+});
