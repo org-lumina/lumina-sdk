@@ -3,6 +3,11 @@
  *
  * Run:
  *   LUMINA_API_KEY=lk_… BUYER_WALLET=0x… npx ts-node examples/purchase-policy.ts
+ *
+ * ## Next steps
+ * This script covers Step 1 of the agent lifecycle (purchase). For the full
+ * flow (purchase → trigger → bond → wait/sell → redeem) see
+ * [./end-to-end-flow.ts](./end-to-end-flow.ts).
  */
 
 import { LuminaClient } from "@lumina-org/sdk";
