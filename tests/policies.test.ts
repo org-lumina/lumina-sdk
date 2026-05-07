@@ -113,3 +113,88 @@ describe("PoliciesAPI.purchase", () => {
     expect(captured?.get("x-api-key")).toBe("lk_test");
   });
 });
+
+describe("PoliciesAPI.list — wallet auto-injection + casing normalize", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("auto-resolves wallet via /auth/me and normalizes snake_case rows", async () => {
+    const calls: string[] = [];
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      calls.push(String(url));
+      if (String(url).endsWith("/api/v1/auth/me")) {
+        return new Response(
+          JSON.stringify({ wallet: "0xWallet", apiKeyPrefix: "lk_x", tier: "free" }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          owner: "0xWallet",
+          count: 2,
+          policies: [
+            {
+              id: 17,
+              product_id: "0xabc",
+              policy_id: 3,
+              buyer: "0xWallet",
+              coverage_amount: "100000000",
+              premium_paid: "900000",
+              tx_hash: "0xfeed",
+              created_at: 1778093417000,
+            },
+            {
+              id: 18,
+              product_id: "0xdef",
+              policy_id: 4,
+              buyer: "0xWallet",
+              coverage_amount: "150000000",
+              premium_paid: "1200000",
+              tx_hash: "0xbeef",
+              created_at: 1778093427000,
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }) as typeof fetch;
+
+    const c = new LuminaClient({ apiKey: "lk_test" });
+    const policies = await c.policies.list();
+    expect(policies).toHaveLength(2);
+    // Casing normalized
+    expect(policies[0]).toMatchObject({
+      productId: "0xabc",
+      policyId: 3,
+      coverageAmount: "100000000",
+      premiumPaid: "900000",
+      txHash: "0xfeed",
+      createdAt: 1778093417000,
+    });
+    // Snake_case original keys are NOT preserved
+    expect((policies[0] as unknown as Record<string, unknown>).policy_id).toBeUndefined();
+    expect((policies[0] as unknown as Record<string, unknown>).coverage_amount).toBeUndefined();
+    // /auth/me hit + /policies hit
+    expect(calls.length).toBe(2);
+    expect(calls[0]).toMatch(/\/api\/v1\/auth\/me$/);
+    expect(calls[1]).toMatch(/\/api\/v1\/policies\?owner=0xWallet$/);
+  });
+
+  it("preserves back-compat with explicit { wallet }", async () => {
+    let captured: string | undefined;
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      captured = String(url);
+      return new Response(
+        JSON.stringify({ owner: "0xExplicit", count: 0, policies: [] }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }) as typeof fetch;
+
+    const c = new LuminaClient({ apiKey: "lk_test" });
+    const out = await c.policies.list({ wallet: "0xExplicit" });
+    expect(out).toEqual([]);
+    expect(captured).toMatch(/\/api\/v1\/policies\?owner=0xExplicit$/);
+  });
+});

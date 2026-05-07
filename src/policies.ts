@@ -13,6 +13,7 @@ import {
   getExpectedAssetFromProductId,
   getProductIdFromName,
 } from "./products-map";
+import { snakeToCamel } from "./utils/case-converter";
 
 /**
  * Minimal ERC-20 ABI fragment used by `ensureAllowance` to read the buyer's
@@ -28,13 +29,34 @@ export class PoliciesAPI {
   constructor(private readonly client: LuminaClient) {}
 
   /**
-   * List the calling wallet's policies. The API filters by `req.agent.wallet`
-   * server-side; cross-wallet listing is forbidden (403).
+   * List policies for `wallet`. If `wallet` is omitted, defaults to the
+   * wallet associated with the configured API key (resolved once via
+   * `GET /api/v1/auth/me` and cached). The API still validates server-side
+   * that the requested `wallet` matches the key's wallet — cross-wallet
+   * reads return 403 even if explicitly requested.
+   *
+   * The API returns rows in snake_case (Postgres convention); the SDK
+   * normalizes them to the camelCase `Policy` type before returning.
+   *
+   * @example
+   * // 0.5.1+ — auto-resolved from the API key
+   * const policies = await lumina.policies.list();
+   *
+   * @example
+   * // back-compat — explicit wallet
+   * const policies = await lumina.policies.list({ wallet: "0xabc..." });
    */
-  async list(): Promise<Policy[]> {
-    const r = await this.client.fetch("/api/v1/policies");
-    const body = (await r.json()) as { count: number; policies: Policy[]; owner: string };
-    return body.policies;
+  async list(params: { wallet?: string } = {}): Promise<Policy[]> {
+    const wallet = params.wallet ?? (await this.client.getMyWallet());
+    const r = await this.client.fetch(
+      `/api/v1/policies?owner=${encodeURIComponent(wallet)}`
+    );
+    const body = (await r.json()) as {
+      count: number;
+      policies: unknown[];
+      owner: string;
+    };
+    return snakeToCamel<Policy[]>(body.policies ?? []);
   }
 
   /**
