@@ -1,6 +1,9 @@
 /**
  * examples/marketplace-flow.ts — end-to-end secondary-market flow.
  *
+ * For broader lifecycle context (purchase → trigger → bond → wait/sell → redeem),
+ * see [./end-to-end-flow.ts](./end-to-end-flow.ts).
+ *
  *   LUMINA_API_KEY=lk_…             \
  *   SELLER_PRIVATE_KEY=0x…           \
  *   BUYER_PRIVATE_KEY=0x…            \

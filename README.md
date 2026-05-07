@@ -8,6 +8,37 @@ npm install @lumina-org/sdk
 
 Currently deployed on **Base Sepolia (chainId 84532)**. Mainnet soon.
 
+## Lifecycle Overview
+
+How Lumina goes from a USDC premium to a LUMINA payout, in 6 steps:
+
+```
+Buyer pays USDC premium
+    │
+    ▼
+Active Policy
+    │ (parametric event triggers, on-chain, automatic)
+    ▼
+ClaimBond NFT (ERC-1155, $1 face/unit, 730d maturity)
+    │
+    ▼ Decision: wait or sell?
+    │
+    ├──► OPTION A: Wait 730 days, redeem for $LUMINA
+    │       (units × $1) ÷ LUMINA_price_at_maturity
+    │
+    └──► OPTION B: List on marketplace, get USDC now
+            (price - 3% fees), buyer receives bond
+                │
+                ▼
+            New holder, same choice at maturity
+```
+
+**Premium = USDC. Marketplace trade = USDC. Bond redeem at maturity = $LUMINA.**
+
+Worked example: a $3 USDC premium covering $800 → trigger fires → 800-unit bond minted → wait 730d → at $0.50 LUMINA price → receive 1,600 LUMINA. See [end-to-end-flow.ts](./examples/end-to-end-flow.ts) for the SDK code.
+
+Read the full lifecycle docs: [docs.lumina-org.com/concepts/lifecycle](https://docs.lumina-org.com/concepts/lifecycle).
+
 ## Quick start
 
 ```ts
