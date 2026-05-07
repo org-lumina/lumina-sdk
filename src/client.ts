@@ -18,6 +18,10 @@ export const DEFAULT_API_BASE = "https://lumina-api-production-ac85.up.railway.a
 export class LuminaClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
+  // Memoized result of GET /api/v1/auth/me. Resolved by `getMyWallet()`
+  // and reused across all auto-resolving calls so a single key only
+  // pays the round-trip once per process.
+  private myWalletPromise: Promise<string> | null = null;
 
   public readonly products: ProductsAPI;
   public readonly policies: PoliciesAPI;
@@ -46,6 +50,44 @@ export class LuminaClient {
   async health(): Promise<HealthResponse> {
     const r = await this.fetch("/health");
     return (await r.json()) as HealthResponse;
+  }
+
+  /**
+   * Resolve and cache the wallet associated with the configured API key
+   * via `GET /api/v1/auth/me`. Used by `bonds.list()`, `policies.list()`,
+   * and `marketplace.myListings()` when the caller doesn't pass a wallet
+   * explicitly.
+   *
+   * The first call hits the API; subsequent calls return the cached
+   * result. If the request fails (no key, /auth/me missing, 5xx) we
+   * surface a clear error so callers can pass `wallet` explicitly.
+   *
+   * NOTE: requires API >= the release that ships `/api/v1/auth/me`
+   * (added 2026-05-07). On older deployments the endpoint returns 404
+   * `not_found` and this method throws `LuminaError` with the same code.
+   */
+  async getMyWallet(): Promise<string> {
+    if (this.myWalletPromise) return this.myWalletPromise;
+    this.myWalletPromise = (async () => {
+      try {
+        const r = await this.fetch("/api/v1/auth/me");
+        const body = (await r.json()) as { wallet?: string };
+        if (!body.wallet || typeof body.wallet !== "string") {
+          throw new LuminaError(
+            "GET /api/v1/auth/me did not return a `wallet` field. Pass {wallet} explicitly or check your API key.",
+            500,
+            "auth_me_invalid"
+          );
+        }
+        return body.wallet;
+      } catch (err) {
+        // Drop the cached failure so a transient outage doesn't pin the
+        // client into permanent-failure mode.
+        this.myWalletPromise = null;
+        throw err;
+      }
+    })();
+    return this.myWalletPromise;
   }
 
   /**

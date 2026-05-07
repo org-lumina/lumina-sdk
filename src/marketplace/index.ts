@@ -253,15 +253,22 @@ export class MarketplaceAPI {
   }
 
   /**
-   * Listings created by `seller` (any status). Convenience wrapper around
-   * `listings()` with a server-side `seller=` filter.
+   * Listings created by `seller` (any status). If `seller` is omitted the
+   * SDK auto-resolves the wallet associated with the configured API key
+   * via `GET /api/v1/auth/me`.
    *
    * @example
+   * // 0.5.1+ — auto-resolved
+   * const mine = await client.marketplace.myListings();
+   *
+   * @example
+   * // back-compat — explicit
    * const mine = await client.marketplace.myListings('0xabc...');
    */
-  async myListings(seller: string): Promise<Listing[]> {
+  async myListings(seller?: string): Promise<Listing[]> {
+    const sellerWallet = seller ?? (await this.client.getMyWallet());
     const qs = new URLSearchParams();
-    qs.set("seller", seller);
+    qs.set("seller", sellerWallet);
     qs.set("limit", "100");
     const r = await this.client.fetch(
       `/api/v1/marketplace/listings?${qs.toString()}`
