@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.3 — 2026-05-15
+### Added
+- `src/constants.ts` — public metadata constants for Sprint Z.2 (ADR-024) vesting fix:
+  - `LUMINA_ORACLE_V2_SET_A = "0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194"` (canonical oracle per ADR-010).
+  - `FOUNDER_VESTING_V2_ADDRESS = "TBD_POST_DEPLOY"` placeholder. The founder updates this constant to the captured deploy address after Phase 1.b of `TODO_FOUNDER.md` (lumina-protocol repo) and publishes the package to npm.
+  - `FOUNDER_VESTING_LEGACY_ADDRESS = "0xa3e7685E21A141930F63432E927D679fD3FDE876"` (deprecated; balance 0 post-rescue).
+  - `LUMINA_TOKEN_V2_PROXY = "0x7D3E392Bdb3258cF92C257C90391957d7b0Aff02"` (proxy stable; impl rotates V2 → RescueV1 → PostRescueV2 during Sprint Z.2 broadcast).
+- All 4 constants re-exported from the package root.
+
+### Notes
+- Runtime address resolution (`LuminaClient.getContracts()`) remains the recommended path for SDK consumers. The new constants are PUBLIC METADATA — useful for `if (myAddr === FOUNDER_VESTING_V2_ADDRESS)` style checks and event filtering — not for replacing the `/health.contracts` lookup.
+
 ## 0.5.2 — 2026-05-07
 ### Fixed
 - CRITICAL: `marketplace.*` write methods (`approveBonds`, `list`, `buy`, `cancel`, `approve`) read `health.contracts.bondMarketplace` — but the canonical key is `marketplace`. The lookup always returned `undefined` and silently fell back to a hardcoded constant. The constant happened to match prod, so marketplace itself worked, but the fallback for `claimBond` (`0x3d2F26B6…`) was stale (live: `0x3d2F5DB2…`). Fixed: now reads `marketplace` and never falls back. (P0)
