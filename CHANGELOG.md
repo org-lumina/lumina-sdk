@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.3 - 2026-05-18
+
+### Changed
+- Updated contract addresses for **V5.2 fresh testnet deploy** on Base Sepolia (2026-05-18, 26 contracts).
+- New FounderVesting V2 with PATH 2 override (ETH > $5000, sustained 1d) and adjusted durations (sustained 1d, fallback 3 years).
+- Set final 7 shields (MicroDepeg + FlashBTC4h removed per ADR-026):
+  - FlashBTCShield 1h / 24h / 48h
+  - FlashETHShield 1h / 24h / 48h
+  - RateShockShield
+- Oracle wiring fixed: FounderVesting now points to LuminaOracleV2 (not CapacityOracle) — verified on-chain.
+
+### Notes
+No source changes — SDK uses runtime `getContracts()` helper (since 0.5.2). All addresses are resolved at runtime from `GET /health`. This version bump reflects the protocol upgrade, not an SDK API change.
+
+### Reference
+- Manifest: `tracking/sepolia-deployments/2026-05-18-V5.2-fresh-deploy.md` in lumina-testnet-tracker
+- ADR-027 in lumina-testnet-tracker
+- Sprint Deploy + Sprint Reconexión sprints completados.
+
 ## 0.5.2 — 2026-05-07
 ### Fixed
 - CRITICAL: `marketplace.*` write methods (`approveBonds`, `list`, `buy`, `cancel`, `approve`) read `health.contracts.bondMarketplace` — but the canonical key is `marketplace`. The lookup always returned `undefined` and silently fell back to a hardcoded constant. The constant happened to match prod, so marketplace itself worked, but the fallback for `claimBond` (`0x3d2F26B6…`) was stale (live: `0x3d2F5DB2…`). Fixed: now reads `marketplace` and never falls back. (P0)
